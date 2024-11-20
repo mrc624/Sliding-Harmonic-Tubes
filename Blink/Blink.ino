@@ -21,25 +21,63 @@
 
   https://www.arduino.cc/en/Tutorial/BuiltInExamples/Blink
 */
+#include <Arduino.h>
+#include <math.h>
+#include <MIDI.h>
+#include <LittleFS.h>
 
+#include "FS.h"
+#include "USB.h"
+#include "USBMIDI.h"
+
+#define MINIMUM_BPM 60
+#define MAX_BPM 120
+#define INVALID_BPM 0
+
+bool SongLoaded = false;
+uint bpm = 0;
+String note_data = "";
+
+void GatherMusicInfo()
+{
+  while ((bpm < MINIMUM_BPM) || (bpm > MAX_BPM)) {
+    Serial.println("Enter a BPM: ");
+
+    while (!Serial.available()) {
+      delay(10);
+    }
+
+    String input = Serial.readStringUntil('\n');
+    int input_bpm = input.toInt();
+
+    if (input_bpm < MINIMUM_BPM) {
+      Serial.print("Invalid BPM, Minimum BPM is: ");
+      Serial.println(MINIMUM_BPM);
+    } else if (input_bpm > MAX_BPM) {
+      Serial.print("Invalid BPM, Maximum BPM is: ");
+      Serial.println(MAX_BPM);
+    } else {
+      bpm = input_bpm;
+      Serial.print("BPM set to: ");
+      Serial.println(bpm);
+    }
+  }
+}
 
 // the setup function runs once when you press reset or power the board
 void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
+  Serial.begin(115200);
+  while (!Serial)
+  {
+    delay(10);
+  }
+  Serial.println("Serial Initialized");
 }
 
 // the loop function runs over and over again forever
 void loop() {
-  digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-  delay(1000);                      // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
-  delay(1000);                      // wait for a second
-  if (Serial.available())
+  if (!SongLoaded)
   {
-    String received = Serial.readString();
-    Serial.print("You sent: ");
-    Serial.println(received);
+    GatherMusicInfo();
   }
 }
