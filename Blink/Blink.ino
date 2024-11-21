@@ -23,23 +23,65 @@
 */
 
 
-// the setup function runs once when you press reset or power the board
+#define GPIO_PIN_DIR 18
+#define GPIO_PIN_STEP 19 
+#define GPIO_PIN_CLK 21
+
 void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
+  Serial.begin(115200);
+  while (!Serial) {
+    // Wait for Serial connection
+    delay(10);
+  }
+
+  pinMode(GPIO_PIN_DIR, OUTPUT);
+  digitalWrite(GPIO_PIN_DIR, LOW);
+  pinMode(GPIO_PIN_STEP, OUTPUT);
+  digitalWrite(GPIO_PIN_STEP, LOW);
+  pinMode(GPIO_PIN_CLK, OUTPUT);
+  digitalWrite(GPIO_PIN_CLK, LOW);
+
+  Serial.println("Enter ON to turn GPIO on, OFF to turn it off.");
 }
 
-// the loop function runs over and over again forever
 void loop() {
-  digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-  delay(1000);                      // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
-  delay(1000);                      // wait for a second
-  if (Serial.available())
-  {
-    String received = Serial.readString();
-    Serial.print("You sent: ");
-    Serial.println(received);
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n'); // Read input until newline
+    command.trim(); // Remove any whitespace or newline characters
+
+    if (command.equalsIgnoreCase("DIR ON")) 
+    {
+      digitalWrite(GPIO_PIN_DIR, LOW);
+      Serial.println("DIR is now ON");
+    } 
+    else if (command.equalsIgnoreCase("DIR OFF"))
+    {
+      digitalWrite(GPIO_PIN_DIR, LOW);
+      Serial.println("DIR is now OFF");
+    }
+    else if (command.equalsIgnoreCase("STEP ON"))
+    {
+      digitalWrite(GPIO_PIN_STEP, HIGH);
+      Serial.println("STEP is now ON");
+    }
+    else if (command.equalsIgnoreCase("STEP OFF"))
+    {
+      digitalWrite(GPIO_PIN_STEP, LOW);
+      Serial.println("STEP is now OFF");
+    }
+    else if (command.equalsIgnoreCase("CLOCK ON"))
+    {
+      digitalWrite(GPIO_PIN_CLK, HIGH);
+      Serial.println("CLOCK is now ON");
+    }
+    else if (command.equalsIgnoreCase("CLOCK OFF"))
+    {
+      digitalWrite(GPIO_PIN_CLK, LOW);
+      Serial.println("CLOCK is now OFF");
+    }
+    else {
+      Serial.println("Invalid command. Type ON or OFF.");
+    }
   }
 }
+
