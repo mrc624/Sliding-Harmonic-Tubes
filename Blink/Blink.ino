@@ -44,6 +44,11 @@ bool SongLoaded = false;
 uint bpm = 0;
 String note_data = "";
 
+
+float curr_note_length = 0;
+String curr_note = "";
+int curr_line = -1;
+
 uint BPMtoInterval(uint data)
 {
   return (60 * 1000) / data;
@@ -80,7 +85,7 @@ void GatherMusicInfo()
   Serial.println("Enter a note followed by a length");
   Serial.println("Full: 1, Half: 2, Quarter: 4)");
 
-  note_data = "C 1";
+  note_data = "C 1\nD 0.5\nE 1\nF 2\nG 1";
 
   SongLoaded = true;
 }
@@ -116,7 +121,7 @@ void loop() {
 
   currentMillis = millis();
 
-  if ( ((currentMillis - previousMillis) >= (interval / 2)) && SongLoaded)
+  /*(if ( ((currentMillis - previousMillis) >= interval && SongLoaded) )
   {
     previousMillis = currentMillis;
 
@@ -125,11 +130,63 @@ void loop() {
     
     // Turn the LED on or off based on ledState
     if (ledState) {
-      digitalWrite(LED_BUILTIN, HIGH);  // LED ON
       Serial.println("BEAT");
+      digitalWrite(LED_BUILTIN, HIGH);   // LED ON
     } else {
       digitalWrite(LED_BUILTIN, LOW);   // LED OFF
     }
+  }*/
+
+  /*if (curr_line + 1 == 0)
+  {
+    curr_note = note_data.substring(0, note_data.indexOf(" "));
+    curr_note_length = note_data.substring(note_data.indexOf(" "), note_data.indexOf("\n")).toFloat();
+    note_data = note_data.substring(note_data.indexOf("\n"));
+    Serial.print("First note: ");
+    Serial.print(curr_note);
+    Serial.print(" Length: ");
+    Serial.println(curr_note_length);
+    curr_line++;
+  }*/
+
+  if ((currentMillis - previousMillis) >= interval * curr_note_length) {
+    previousMillis = currentMillis;
+
+    // Check if note_data contains at least one note
+    if (note_data.length() > 0) {
+      int spaceIndex = note_data.indexOf(" ");
+      int newlineIndex = note_data.indexOf("\n");
+
+      // Ensure both space and newline are present
+      if (spaceIndex > 0) {
+        curr_note = note_data.substring(0, spaceIndex);
+
+        // Handle case where newline is missing
+        if (newlineIndex == -1) {
+          newlineIndex = note_data.length();
+        }
+
+        curr_note_length = note_data.substring(spaceIndex + 1, newlineIndex).toFloat();
+
+        // Update note_data to the next line
+        if (newlineIndex < note_data.length()) {
+          note_data = note_data.substring(newlineIndex + 1);
+        } else {
+          note_data = ""; // No more notes
+        }
+
+        // Debug output
+        Serial.print("Note: ");
+        Serial.print(curr_note);
+        Serial.print(" Length: ");
+        Serial.println(curr_note_length);
+
+      } else {
+        Serial.println("Invalid note_data format");
+        note_data = ""; // Stop processing
+      }
+    }
   }
+
 
 }
