@@ -34,13 +34,26 @@
 #define MAX_BPM 120
 #define INVALID_BPM 0
 
+unsigned long previousMillis = 0;
+unsigned long currentMillis = 0;
+unsigned long interval = 0;
+
+static bool ledState = false;
+
 bool SongLoaded = false;
 uint bpm = 0;
 String note_data = "";
 
+uint BPMtoInterval(uint data)
+{
+  return (60 * 1000) / data;
+}
+
 void GatherMusicInfo()
 {
+  bpm = INVALID_BPM;
   while ((bpm < MINIMUM_BPM) || (bpm > MAX_BPM)) {
+
     Serial.println("Enter a BPM: ");
 
     while (!Serial.available()) {
@@ -58,10 +71,18 @@ void GatherMusicInfo()
       Serial.println(MAX_BPM);
     } else {
       bpm = input_bpm;
+      interval = BPMtoInterval(bpm);
       Serial.print("BPM set to: ");
       Serial.println(bpm);
     }
   }
+
+  Serial.println("Enter a note followed by a length");
+  Serial.println("Full: 1, Half: 2, Quarter: 4)");
+
+  note_data = "C 1";
+
+  SongLoaded = true;
 }
 
 // the setup function runs once when you press reset or power the board
@@ -72,12 +93,43 @@ void setup() {
     delay(10);
   }
   Serial.println("Serial Initialized");
+  pinMode(LED_BUILTIN, OUTPUT);
+  Serial.println("LED Initialized");
 }
 
 // the loop function runs over and over again forever
 void loop() {
+
+  if (Serial.available())
+  {
+    if(Serial.readStringUntil('\n') == "reset")
+    {
+      SongLoaded = false;
+    }
+  }
+
   if (!SongLoaded)
   {
     GatherMusicInfo();
+    Serial.println(note_data);
   }
+
+  currentMillis = millis();
+
+  if ( ((currentMillis - previousMillis) >= (interval / 2)) && SongLoaded)
+  {
+    previousMillis = currentMillis;
+
+    // Toggle the LED state
+    ledState = !ledState;
+    
+    // Turn the LED on or off based on ledState
+    if (ledState) {
+      digitalWrite(LED_BUILTIN, HIGH);  // LED ON
+      Serial.println("BEAT");
+    } else {
+      digitalWrite(LED_BUILTIN, LOW);   // LED OFF
+    }
+  }
+
 }
