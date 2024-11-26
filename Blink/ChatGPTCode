@@ -1,0 +1,119 @@
+#include <TMCStepper.h>
+
+#define DIR_PIN 18          // Direction pin
+#define STEP_PIN 19         // Step pin
+#define SW_TX 17            // UART TX
+#define SW_RX 16            // UART RX
+
+#define LIMIT_SWITCH_PIN 2  // Minimum limit switch pin
+#define SOLENOID_PIN 3      // Solenoid control pin
+
+#define R_SENSE 0.11f       // Sense resistor value
+#define DRIVER_ADDRESS 0b00 // TMC2209 Driver address
+
+HardwareSerial TMCSerial(1);  // Use Serial1 for UART
+TMC2209Stepper TMCdriver(&TMCSerial, R_SENSE, DRIVER_ADDRESS);
+
+const int stepsPerUnit = 200;  // Steps per unit distance
+bool dir = true;               // Direction state
+
+int currentPosition = 0;       // Current position of the stepper motor
+int minPosition = 0;           // Minimum position determined by startup
+
+void setup() {
+  Serial.begin(115200);             // Debugging
+  TMCSerial.begin(115200, SERIAL_8N1, SW_RX, SW_TX);
+  TMCdriver.begin();
+
+  // Configure pins
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
+  pinMode(SOLENOID_PIN, OUTPUT);
+
+  // TMC2209 configuration
+  TMCdriver.toff(5);
+  TMCdriver.rms_current(900);
+  TMCdriver.microsteps(16);
+  TMCdriver.en_spreadCycle(false);
+  TMCdriver.pwm_autoscale(true);
+
+  // Startup sequence: find the minimum position
+  findMinimumPosition();
+}
+
+void loop() {
+  // Example for receiving and processing MIDI notes (replace with actual MIDI logic)
+  int midiNote = receiveMidiNote();
+  int velocity = receiveMidiVelocity();
+
+  if (velocity > 0) {
+    openSolenoid();
+  } else {
+    closeSolenoid();
+  }
+
+  int targetPosition = calculateTargetPosition(midiNote);
+  moveToPosition(targetPosition);
+}
+
+// Startup sequence: find the minimum position
+void findMinimumPosition() {
+  while (digitalRead(LIMIT_SWITCH_PIN) == HIGH) { // While switch not pressed
+    stepMotor(true);  // Move towards minimum
+  }
+  minPosition = currentPosition;
+  Serial.println("Minimum position set.");
+}
+
+// Open the solenoid
+void openSolenoid() {
+  digitalWrite(SOLENOID_PIN, HIGH);
+}
+
+// Close the solenoid
+void closeSolenoid() {
+  digitalWrite(SOLENOID_PIN, LOW);
+}
+
+// Convert MIDI note to stepper position
+int calculateTargetPosition(int midiNote) {
+  // Example: map MIDI note to distance
+  return minPosition + (midiNote * stepsPerUnit);
+}
+
+// Move the stepper motor to the target position
+void moveToPosition(int targetPosition) {
+  int steps = targetPosition - currentPosition;
+  bool direction = (steps > 0);
+  digitalWrite(DIR_PIN, direction);
+  TMCdriver.shaft(direction);
+
+  for (int i = 0; i < abs(steps); i++) {
+    stepMotor(direction);
+  }
+  currentPosition = targetPosition;
+}
+
+// Single step in the specified direction
+void stepMotor(bool direction) {
+  digitalWrite(STEP_PIN, HIGH);
+  delayMicroseconds(75);
+  digitalWrite(STEP_PIN, LOW);
+  delayMicroseconds(75);
+
+  // Update position
+  currentPosition += direction ? 1 : -1;
+}
+
+// Placeholder for receiving MIDI note
+int receiveMidiNote() {
+  // Replace with actual MIDI receiving code
+  return 60; // Example: MIDI note C4
+}
+
+// Placeholder for receiving MIDI velocity
+int receiveMidiVelocity() {
+  // Replace with actual MIDI velocity receiving code
+  return 100; // Example: velocity > 0
+}
