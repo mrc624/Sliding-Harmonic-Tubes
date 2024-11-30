@@ -252,7 +252,7 @@ void loop()
 
     char data_char = Serial.read();
 
-    if (data_char == 'A')
+    if (data_char == 'z')
     {
       Serial.println(data);
     }
