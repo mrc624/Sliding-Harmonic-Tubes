@@ -1,4 +1,6 @@
-#define LED_PIN 13 // Built-in LED on most Arduino boards
+#include <math.h>
+
+#define SPEAKER_PIN 13 // Built-in LED on most Arduino boards
 
 enum Receiving_Data
 {
@@ -206,27 +208,47 @@ String MidiNoteNames[] = {
   "C8", "C#8", "D8", "D#8", "E8", "F8", "F#8", "G8"
 };
 
+#define SPEAKER_OFF 0
+#define SPEAKER_ON 128
+#define DEFAULT_FREQUENCY 0
+#define SEMITONES_IN_OCTAVE 12
+
 String data = "";
 
 Receiving_Data Current_Data = NOTE;
 int curr_velocity;
 MidiNote curr_note;
 
+int get_note_frequency(MidiNote note)
+{
+  double exp = ( (double)(note) - (double)(A_4) ) / (double)(SEMITONES_IN_OCTAVE);
+  int freq = (int)((double)(440) * pow(2, exp));
+  return freq;
+}
+
 void setup() {
   Serial.begin(9600);
-  pinMode(LED_BUILTIN, OUTPUT); // Set the LED pin as an output
 
   while (!Serial) {
     // Wait for Serial connection
     delay(10);  
   }
+  Serial.println("Serial Initialized");
 
-  Serial.println("Welcome, System Ready");
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(SPEAKER_PIN, OUTPUT);
+  analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY);
+  analogWrite(SPEAKER_PIN, SPEAKER_OFF);
+  Serial.println("GPIO Initialized");
+
+  Serial.println("System Ready");
 }
 
-void loop() {
+void loop()
+{
   // Check if data is available in the serial buffer
-  if (Serial.available()) {
+  if (Serial.available())
+  {
 
     char data_char = Serial.read();
 
@@ -240,6 +262,8 @@ void loop() {
       {
         curr_note = (MidiNote)(data_char);
         data += "NOTE: " + MidiNoteNames[curr_note] + " ";
+        int freq = get_note_frequency((MidiNote)(curr_note));
+        analogWriteFrequency(SPEAKER_PIN, freq);
         Current_Data = VELOCITY;
       }
       else if (Current_Data == VELOCITY)
@@ -247,16 +271,18 @@ void loop() {
         curr_velocity = (int)(data_char);
         data += "VELOCITY: " + (String)(curr_velocity) + "\n";
         Current_Data = NOTE;
-      }
-    }
 
-    if (curr_velocity > 0)
-    {
-      digitalWrite(LED_BUILTIN, HIGH);
-    }
-    else
-    {
-      digitalWrite(LED_BUILTIN, LOW);
+        if (curr_velocity > 0)
+        {
+          digitalWrite(LED_BUILTIN, HIGH);
+          analogWrite(SPEAKER_PIN, SPEAKER_ON);
+        }
+        else
+        {
+          digitalWrite(LED_BUILTIN, LOW);
+          analogWrite(SPEAKER_PIN, SPEAKER_OFF);
+        }
+      }
     }
   }
 }
