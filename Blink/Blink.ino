@@ -1,6 +1,23 @@
 #include <math.h>
 
-#define SPEAKER_PIN 13 // Built-in LED on most Arduino boards
+#include <TMCStepper.h>  // TMCstepper library
+
+#define DIR_PIN          18  // Direction - WHITE
+#define STEP_PIN         19  // Step - ORANGE
+#define SW_TX            17  // Hardware Serial TX pin
+#define SW_RX            16  // Hardware Serial RX pin
+
+#define SPEAKER_PIN 4
+
+#define R_SENSE 0.11f         // Sense resistor value
+#define DRIVER_ADDRESS 0b00   // Driver address for MS1/MS2 configuration
+
+#define SPEAKER_OFF 0
+#define SPEAKER_ON 128
+#define DEFAULT_FREQUENCY 0
+#define SEMITONES_IN_OCTAVE 12
+
+#define STEP_DELAY 75
 
 enum Receiving_Data
 {
@@ -208,16 +225,18 @@ String MidiNoteNames[] = {
   "C8", "C#8", "D8", "D#8", "E8", "F8", "F#8", "G8"
 };
 
-#define SPEAKER_OFF 0
-#define SPEAKER_ON 128
-#define DEFAULT_FREQUENCY 0
-#define SEMITONES_IN_OCTAVE 12
-
+//Receiving Midi
 String data = "";
-
 Receiving_Data Current_Data = NOTE;
 int curr_velocity;
 MidiNote curr_note;
+
+//Stepper
+bool dir = true;
+int step = 0;
+int step_go_to = 0;
+HardwareSerial TMCSerial(1);  // Use Serial1 for UART communication
+TMC2209Stepper TMCdriver(&TMCSerial, R_SENSE, DRIVER_ADDRESS);
 
 int get_note_frequency(MidiNote note)
 {
@@ -226,25 +245,7 @@ int get_note_frequency(MidiNote note)
   return freq;
 }
 
-void setup() {
-  Serial.begin(9600);
-
-  while (!Serial) {
-    // Wait for Serial connection
-    delay(10);  
-  }
-  Serial.println("Serial Initialized");
-
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(SPEAKER_PIN, OUTPUT);
-  analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY);
-  analogWrite(SPEAKER_PIN, SPEAKER_OFF);
-  Serial.println("GPIO Initialized");
-
-  Serial.println("System Ready");
-}
-
-void loop()
+void Handle_Serial_Input()
 {
   // Check if data is available in the serial buffer
   if (Serial.available())
@@ -285,4 +286,106 @@ void loop()
       }
     }
   }
+
+}
+
+void Handle_Stepper()
+{
+ if (step != step_go_to)
+  {
+    digitalWrite(LED_BUILTIN, HIGH);
+    if (step > step_go_to)
+    {
+      dir = false;
+      Serial.println("DIR: FALSE");
+    }
+    else if (step < step_go_to)
+    {
+      dir = true;
+      Serial.println("DIR: TRUE");
+    }
+
+    digitalWrite(DIR_PIN, dir);         // Update direction pin
+    TMCdriver.shaft(dir);               // Update driver direction
+
+    while (step != step_go_to)
+    {
+      digitalWrite(STEP_PIN, HIGH);
+      delayMicroseconds(STEP_DELAY);
+      digitalWrite(STEP_PIN, LOW);
+      delayMicroseconds(STEP_DELAY);
+      if (dir)
+      {
+        step++;
+      }
+      else
+      {
+        step--;
+      }
+    }
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+}
+
+void Input_Step_For_Testing()
+{
+  if (Serial.available())
+  {
+    Serial.println("READING STRING");
+    String str = Serial.readStringUntil('\n');
+    step_go_to = str.toInt();
+    Serial.print("GOING TO STEP: ");
+    Serial.println(step_go_to);
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  while (!Serial) {
+    // Wait for Serial connection
+    delay(10);  
+  }
+  Serial.println("Serial Initialized");
+
+  TMCSerial.begin(9600, SERIAL_8N1, SW_RX, SW_TX);  // Start UART for TMC2209
+  TMCdriver.begin();                  // Initialize TMC2209 driver
+
+  // Configure pins
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+
+  // TMC2209 settings
+  TMCdriver.toff(5);                  // Enable driver in software
+  TMCdriver.rms_current(900);         // Increase RMS current for more torque (adjust as needed)
+  TMCdriver.microsteps(16);           // Set microsteps (16 is a good starting point)
+  TMCdriver.en_spreadCycle(false);    // Enable StealthChop mode
+  TMCdriver.pwm_autoscale(true);      // Enable automatic PWM scaling
+
+  // Set initial direction
+  digitalWrite(DIR_PIN, dir);
+  TMCdriver.shaft(dir);
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(SPEAKER_PIN, OUTPUT);
+
+  analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY); //Initialized speaker frequency
+  analogWrite(SPEAKER_PIN, SPEAKER_OFF);
+  Serial.println("GPIO Initialized");
+
+  Serial.println("System Ready");
+}
+
+void loop()
+{
+
+  Handle_Serial_Input();
+
+  //Input_Step_For_Testing();
+
+  step_go_to = (int)(curr_note) * 100;
+
+  Handle_Stepper();
+
+  
 }
