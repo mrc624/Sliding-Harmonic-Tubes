@@ -7,7 +7,7 @@
 #define SW_TX            17  // Hardware Serial TX pin
 #define SW_RX            16  // Hardware Serial RX pin
 
-#define SPEAKER_PIN 4
+#define SPEAKER_PIN 5
 
 #define R_SENSE 0.11f         // Sense resistor value
 #define DRIVER_ADDRESS 0b00   // Driver address for MS1/MS2 configuration
@@ -211,6 +211,8 @@ enum MidiNote {
     G_8 = 127
 };
 
+#define PLAY_FLAG C_0
+
 String MidiNoteNames[] = {
   "C-2", "C#-2", "D-2", "D#-2", "E-2", "F-2", "F#-2", "G-2", "G#-2", "A-2", "A#-2", "B-2",
   "C-1", "C#-1", "D-1", "D#-1", "E-1", "F-1", "F#-1", "G-1", "G#-1", "A-1", "A#-1", "B-1",
@@ -228,8 +230,11 @@ String MidiNoteNames[] = {
 //Receiving Midi
 String data = "";
 Receiving_Data Current_Data = NOTE;
-int curr_velocity;
+int curr_velocity = 0;
+int last_received_velocity;
 MidiNote curr_note;
+MidiNote last_received_note;
+bool play = false;
 
 //Stepper
 bool dir = true;
@@ -262,14 +267,16 @@ void Handle_Serial_Input()
       if (Current_Data == NOTE)
       {
         curr_note = (MidiNote)(data_char);
-        data += "NOTE: " + MidiNoteNames[curr_note] + " ";
-        int freq = get_note_frequency((MidiNote)(curr_note));
-        analogWriteFrequency(SPEAKER_PIN, freq);
+          int freq = get_note_frequency((MidiNote)(curr_note));
+          analogWriteFrequency(SPEAKER_PIN, freq);
+        //last_received_note = (MidiNote)(data_char);
+        data += "NOTE: " + MidiNoteNames[last_received_note] + " ";
         Current_Data = VELOCITY;
       }
       else if (Current_Data == VELOCITY)
       {
         curr_velocity = (int)(data_char);
+        //last_received_velocity = (int)(data_char);
         data += "VELOCITY: " + (String)(curr_velocity) + "\n";
         Current_Data = NOTE;
 
@@ -286,6 +293,42 @@ void Handle_Serial_Input()
       }
     }
   }
+
+  //Process_Serial_Input();
+
+}
+
+void Process_Serial_Input()
+{
+  if (last_received_note == PLAY_FLAG)
+  {
+    if (last_received_velocity > 0)
+    {
+      play = true;
+    }
+    else
+    {
+      play = false;
+    }
+  }
+  else if (last_received_note > 0 && curr_velocity == 0) // the only conditions that make it safe to start a new note 
+  {
+    curr_note = last_received_note;
+    curr_velocity = last_received_note;
+  }
+  else if (last_received_note == 0) // if true we might be trying to end a note
+  {
+    if (curr_note == last_received_note) // if we are trying to end the same note we started on, then end it. Otherwise ignore it
+    {
+      curr_note = last_received_note;
+      curr_velocity = 0;
+    }
+  }
+
+      
+  int freq = get_note_frequency((MidiNote)(curr_note));
+  analogWriteFrequency(SPEAKER_PIN, freq);
+        
 
 }
 
