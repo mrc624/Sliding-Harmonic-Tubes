@@ -9,6 +9,8 @@
 
 #define SPEAKER_PIN 5
 
+#define SOLENOID_PIN 4
+
 #define R_SENSE 0.11f         // Sense resistor value
 #define DRIVER_ADDRESS 0b00   // Driver address for MS1/MS2 configuration
 
@@ -211,7 +213,7 @@ enum MidiNote {
     G_8 = 127
 };
 
-#define PLAY_FLAG C_0
+#define NOTE_PLAY_FLAG C_0
 
 String MidiNoteNames[] = {
   "C-2", "C#-2", "D-2", "D#-2", "E-2", "F-2", "F#-2", "G-2", "G#-2", "A-2", "A#-2", "B-2",
@@ -235,6 +237,7 @@ int last_received_velocity;
 MidiNote curr_note;
 MidiNote last_received_note;
 bool play = false;
+bool play_flag = false;
 
 //Stepper
 bool dir = true;
@@ -266,19 +269,34 @@ void Handle_Serial_Input()
     {
       if (Current_Data == NOTE)
       {
-        curr_note = (MidiNote)(data_char);
+        if (data_char != NOTE_PLAY_FLAG)
+        {
+          curr_note = (MidiNote)(data_char);
           int freq = get_note_frequency((MidiNote)(curr_note));
           analogWriteFrequency(SPEAKER_PIN, freq);
-        //last_received_note = (MidiNote)(data_char);
+          //last_received_note = (MidiNote)(data_char);
+        }
+        else
+        {
+          play_flag = true;
+        }
         data += "NOTE: " + MidiNoteNames[last_received_note] + " ";
         Current_Data = VELOCITY;
       }
       else if (Current_Data == VELOCITY)
       {
-        curr_velocity = (int)(data_char);
-        //last_received_velocity = (int)(data_char);
-        data += "VELOCITY: " + (String)(curr_velocity) + "\n";
-        Current_Data = NOTE;
+        int temp_velocity = (int)(data_char);
+        if (play_flag)
+        {
+
+        }
+        else
+        {
+          curr_velocity = temp_velocity;
+          //last_received_velocity = (int)(data_char);
+          data += "VELOCITY: " + (String)(curr_velocity) + "\n";
+          Current_Data = NOTE;
+        }
 
         if (curr_velocity > 0)
         {
@@ -298,6 +316,7 @@ void Handle_Serial_Input()
 
 }
 
+/*
 void Process_Serial_Input()
 {
   if (last_received_note == PLAY_FLAG)
@@ -331,6 +350,7 @@ void Process_Serial_Input()
         
 
 }
+*/
 
 void Handle_Stepper()
 {
@@ -353,10 +373,10 @@ void Handle_Stepper()
 
     while (step != step_go_to)
     {
+      delayMicroseconds(STEP_DELAY);
       digitalWrite(STEP_PIN, HIGH);
       delayMicroseconds(STEP_DELAY);
       digitalWrite(STEP_PIN, LOW);
-      delayMicroseconds(STEP_DELAY);
       if (dir)
       {
         step++;
@@ -411,6 +431,7 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(SPEAKER_PIN, OUTPUT);
+  pinMode(SOLENOID_PIN, OUTPUT);
 
   analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY); //Initialized speaker frequency
   analogWrite(SPEAKER_PIN, SPEAKER_OFF);
