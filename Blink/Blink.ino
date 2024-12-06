@@ -2,11 +2,11 @@
 
 #include <TMCStepper.h>  // TMCstepper library
 
-#define DIR_PIN          18  // Direction - WHITE
-#define STEP_PIN         19  // Step - ORANGE
+#define DIR_PIN          18  // Direction
+#define STEP_PIN         19  // Step
 #define SW_TX            17  // Hardware Serial TX pin
 #define SW_RX            16  // Hardware Serial RX pin
-
+#define SOLENOID_PIN 5
 #define SPEAKER_PIN 4
 
 #define R_SENSE 0.11f         // Sense resistor value
@@ -17,7 +17,9 @@
 #define DEFAULT_FREQUENCY 0
 #define SEMITONES_IN_OCTAVE 12
 
-#define STEP_DELAY 75
+#define STEP_DELAY_RAMP_START 500
+#define STEP_DELAY_RAMP 10
+#define STEP_DELAY 250
 
 enum Receiving_Data
 {
@@ -225,6 +227,12 @@ String MidiNoteNames[] = {
   "C8", "C#8", "D8", "D#8", "E8", "F8", "F#8", "G8"
 };
 
+#define SOLENOID_TRIGGER C_0
+
+bool solenoid_flag = false;
+bool play_note = false;
+int solenoid_velocity = 0;
+
 //Receiving Midi
 String data = "";
 Receiving_Data Current_Data = NOTE;
@@ -232,7 +240,7 @@ int curr_velocity;
 MidiNote curr_note;
 
 //Stepper
-bool dir = true;
+bool dir = false;
 int step = 0;
 int step_go_to = 0;
 HardwareSerial TMCSerial(1);  // Use Serial1 for UART communication
@@ -261,69 +269,90 @@ void Handle_Serial_Input()
     {
       if (Current_Data == NOTE)
       {
-        curr_note = (MidiNote)(data_char);
-        data += "NOTE: " + MidiNoteNames[curr_note] + " ";
-        int freq = get_note_frequency((MidiNote)(curr_note));
-        analogWriteFrequency(SPEAKER_PIN, freq);
+        /*if (data_char == SOLENOID_TRIGGER)
+        {
+          solenoid_flag = true;
+          play_note = !play_note;
+        }
+        else
+        {*/
+          solenoid_flag = false;
+          curr_note = (MidiNote)(data_char);
+          int freq = get_note_frequency((MidiNote)(curr_note));
+          analogWriteFrequency(SPEAKER_PIN, freq);
+        //}
         Current_Data = VELOCITY;
       }
       else if (Current_Data == VELOCITY)
       {
-        curr_velocity = (int)(data_char);
-        data += "VELOCITY: " + (String)(curr_velocity) + "\n";
-        Current_Data = NOTE;
-
-        if (curr_velocity > 0)
+        /*if (solenoid_flag)
         {
-          digitalWrite(LED_BUILTIN, HIGH);
-          analogWrite(SPEAKER_PIN, SPEAKER_ON);
+          solenoid_flag = !solenoid_flag;
         }
         else
-        {
-          digitalWrite(LED_BUILTIN, LOW);
-          analogWrite(SPEAKER_PIN, SPEAKER_OFF);
-        }
+        {*/
+          Current_Data = NOTE;
+
+          curr_velocity = (int)(data_char);
+
+          if (curr_velocity > 0)
+          {
+            digitalWrite(LED_BUILTIN, HIGH);
+            analogWrite(SPEAKER_PIN, SPEAKER_ON);
+            digitalWrite(SOLENOID_PIN, HIGH);
+          }
+          else
+          {
+            digitalWrite(LED_BUILTIN, LOW);
+            analogWrite(SPEAKER_PIN, SPEAKER_OFF);
+            digitalWrite(SOLENOID_PIN, LOW);
+          } 
+        //}
       }
     }
   }
-
+  step_go_to = (int)(curr_note) * 100;
 }
 
 void Handle_Stepper()
 {
  if (step != step_go_to)
   {
-    digitalWrite(LED_BUILTIN, HIGH);
+    //digitalWrite(LED_BUILTIN, HIGH);
     if (step > step_go_to)
     {
-      dir = false;
-      Serial.println("DIR: FALSE");
+      dir = true;
+      digitalWrite(DIR_PIN, dir);         // Update direction pin
+      TMCdriver.shaft(dir);               // Update driver direction
     }
     else if (step < step_go_to)
     {
-      dir = true;
-      Serial.println("DIR: TRUE");
+      dir = false;
+      digitalWrite(DIR_PIN, dir);         // Update direction pin
+      TMCdriver.shaft(dir);               // Update driver direction
     }
 
-    digitalWrite(DIR_PIN, dir);         // Update direction pin
-    TMCdriver.shaft(dir);               // Update driver direction
-
+    int step_delay = STEP_DELAY_RAMP_START;
     while (step != step_go_to)
     {
-      digitalWrite(STEP_PIN, HIGH);
-      delayMicroseconds(STEP_DELAY);
-      digitalWrite(STEP_PIN, LOW);
-      delayMicroseconds(STEP_DELAY);
-      if (dir)
+      if (step_delay != STEP_DELAY)
       {
-        step++;
+        step_delay = step_delay - STEP_DELAY_RAMP;
       }
-      else
+      delayMicroseconds(step_delay);
+      digitalWrite(STEP_PIN, HIGH);
+      delayMicroseconds(step_delay);
+      digitalWrite(STEP_PIN, LOW);
+      if (dir)
       {
         step--;
       }
+      else
+      {
+        step++;
+      }
     }
-    digitalWrite(LED_BUILTIN, LOW);
+    //digitalWrite(LED_BUILTIN, LOW);
   }
 }
 
@@ -354,6 +383,7 @@ void setup() {
   // Configure pins
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
+  pinMode(SOLENOID_PIN, OUTPUT);
 
   // TMC2209 settings
   TMCdriver.toff(5);                  // Enable driver in software
@@ -378,14 +408,29 @@ void setup() {
 
 void loop()
 {
+/*
+  delayMicroseconds(10000000);
+  digitalWrite(SOLENOID_PIN, HIGH);
+  delayMicroseconds(10000000);
+  digitalWrite(SOLENOID_PIN, LOW);
+*/
 
   Handle_Serial_Input();
 
+  if (curr_velocity > 0)
+  {
+    digitalWrite(SOLENOID_PIN, HIGH);
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+  else
+  {
+    digitalWrite(SOLENOID_PIN, LOW);
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
   //Input_Step_For_Testing();
 
-  step_go_to = (int)(curr_note) * 100;
 
   Handle_Stepper();
-
   
 }
