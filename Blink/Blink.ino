@@ -5,31 +5,48 @@
 // CONFIGS
 //#define SERIAL_MONITOR 1
 //#define SPEAKER 1
-//#define MANUAL_STEP_INPUT 1
+//#define MANUAL_INPUT 1
 // PIPE CONFIGS
 //#define CONFIG_PIPE1 1
 //#define CONFIG_PIPE2 1 
 //#define CONFIG_PIPE3 1
 //#define CONFIG_PIPE_BASS 1
 
+#ifdef CONFIG_PIPE_1 // Pipe 1 Config
+
+#elif CONFIG_PIPE_2 // Pipe 2 Config
+
+#elif CONFIG_PIPE_3 // Pipe 3 Config
+
+#elif CONFIG_PIPE_BASS // Bass Pipe Config
+
+#endif
+
+// Pin defines
 #define DIR_PIN          18  // Direction
 #define STEP_PIN         19  // Step
+#define SOLENOID_PIN     5   // Solenoid
 #define SW_TX            17  // Hardware Serial TX pin
 #define SW_RX            16  // Hardware Serial RX pin
-#define SOLENOID_PIN 5
-#define SPEAKER_PIN 4
 
+// TMC defines
 #define R_SENSE 0.11f         // Sense resistor value
 #define DRIVER_ADDRESS 0b00   // Driver address for MS1/MS2 configuration
 
-#define SPEAKER_OFF 0
-#define SPEAKER_ON 128
-#define DEFAULT_FREQUENCY 0
-#define SEMITONES_IN_OCTAVE 12
+#ifdef SPEAKER
+  #define SPEAKER_PIN 4
+  #define SPEAKER_OFF 0
+  #define SPEAKER_ON 128
+  #define DEFAULT_FREQUENCY 0
+  #define SEMITONES_IN_OCTAVE 12
+#endif
 
-#define STEP_DELAY_RAMP_START 250
-#define STEP_DELAY_RAMP 50
-#define STEP_DELAY 100
+// Ramp
+#define STEP_DELAY_RAMP_START 500
+#define STEP_DELAY_RAMP 10
+#define STEP_DELAY 250
+
+#define SOLENOID_TRIGGER C_0
 
 enum Receiving_Data
 {
@@ -237,8 +254,6 @@ String MidiNoteNames[] = {
   "C8", "C#8", "D8", "D#8", "E8", "F8", "F#8", "G8"
 };
 
-#define SOLENOID_TRIGGER C_0
-
 bool solenoid_flag = false;
 bool play_note = false;
 int solenoid_velocity = 0;
@@ -256,12 +271,14 @@ int step_go_to = 0;
 HardwareSerial TMCSerial(1);  // Use Serial1 for UART communication
 TMC2209Stepper TMCdriver(&TMCSerial, R_SENSE, DRIVER_ADDRESS);
 
+#ifdef SPEAKER
 int get_note_frequency(MidiNote note)
 {
   double exp = ( (double)(note) - (double)(A_4) ) / (double)(SEMITONES_IN_OCTAVE);
   int freq = (int)((double)(440) * pow(2, exp));
   return freq;
 }
+#endif
 
 void Handle_Serial_Input()
 {
@@ -384,17 +401,31 @@ void Handle_Solenoid()
   }
 }
 
+#ifdef MANUAL_INPUT
 void Input_Step_For_Testing()
 {
   if (Serial.available())
   {
-    Serial.println("READING STRING");
     String str = Serial.readStringUntil('\n');
-    step_go_to = str.toInt();
-    Serial.print("GOING TO STEP: ");
-    Serial.println(step_go_to);
+    if (str == "ON")
+    {
+      digitalWrite(SOLENOID_PIN, HIGH);
+      Serial.println("SOLENOID: ON");
+    }
+    else if (str == "OFF")
+    {
+      digitalWrite(SOLENOID_PIN, LOW);
+      Serial.println("SOLENOID: OFF");
+    }
+    else
+    {
+      step_go_to = str.toInt();
+      Serial.print("GOING TO STEP: ");
+      Serial.println(step_go_to);
+    }
   }
 }
+#endif
 
 void setup() {
   Serial.begin(9600);
@@ -418,7 +449,7 @@ void setup() {
   // TMC2209 settings
   TMCdriver.toff(5);                  // Enable driver in software
   TMCdriver.rms_current(900);         // Increase RMS current for more torque (adjust as needed)
-  TMCdriver.microsteps(16);           // Set microsteps (16 is a good starting point)
+  TMCdriver.microsteps(32);           // Set microsteps (16 is a good starting point)
   TMCdriver.en_spreadCycle(false);    // Enable StealthChop mode
   TMCdriver.pwm_autoscale(true);      // Enable automatic PWM scaling
 
@@ -426,16 +457,18 @@ void setup() {
   digitalWrite(DIR_PIN, dir);
   TMCdriver.shaft(dir);
 
+#ifdef SPEAKER
   analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY); //Initialized speaker frequency
   analogWrite(SPEAKER_PIN, SPEAKER_OFF);
   Serial.println("GPIO Initialized");
+#endif
 
   Serial.println("System Ready");
 }
 
 void loop()
 {
-#ifdef MANUAL_STEP_INPUT
+#ifdef MANUAL_INPUT
   Input_Step_For_Testing();
 #else
   Handle_Serial_Input();
