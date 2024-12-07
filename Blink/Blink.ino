@@ -2,6 +2,9 @@
 
 #include <TMCStepper.h>  // TMCstepper library
 
+// CONFIGS
+//#define SERIAL_MONITOR 1
+
 #define DIR_PIN          18  // Direction
 #define STEP_PIN         19  // Step
 #define SW_TX            17  // Hardware Serial TX pin
@@ -255,104 +258,123 @@ int get_note_frequency(MidiNote note)
 
 void Handle_Serial_Input()
 {
-  // Check if data is available in the serial buffer
-  if (Serial.available())
+  if (Serial.available()) // Check if data is available in the serial buffer
   {
+    
+    char data_char = Serial.read(); // Gets the first char in the buffer
 
-    char data_char = Serial.read();
-
-    if (data_char == 'z')
+    if (Current_Data == NOTE) // If we're currently getting the note value
     {
-      Serial.println(data);
+
+      curr_note = (MidiNote)(data_char); // Convert char to midi value
+
+      step_go_to = (int)(curr_note) * 100; // Update the step go to
+#ifdef SERIAL_MONITOR
+      Serial.print("STEP GO TO: ");
+      Serial.println(step_go_to);
+#endif
+      
+      // The following code converts the midi note to a frequency value for speaker output
+      /*
+      int freq = get_note_frequency((MidiNote)(curr_note));
+      analogWriteFrequency(SPEAKER_PIN, freq);
+      */
+
+      Current_Data = VELOCITY; // We are now collecting the velocity data
     }
-    else
+    else if (Current_Data == VELOCITY) // If we are collecting the velocity data
     {
-      if (Current_Data == NOTE)
-      {
-        /*if (data_char == SOLENOID_TRIGGER)
-        {
-          solenoid_flag = true;
-          play_note = !play_note;
-        }
-        else
-        {*/
-          solenoid_flag = false;
-          curr_note = (MidiNote)(data_char);
-          int freq = get_note_frequency((MidiNote)(curr_note));
-          analogWriteFrequency(SPEAKER_PIN, freq);
-        //}
-        Current_Data = VELOCITY;
-      }
-      else if (Current_Data == VELOCITY)
-      {
-        /*if (solenoid_flag)
-        {
-          solenoid_flag = !solenoid_flag;
-        }
-        else
-        {*/
-          Current_Data = NOTE;
 
-          curr_velocity = (int)(data_char);
+      curr_velocity = (int)(data_char); // Convert the data_char to a velocity value
 
-          if (curr_velocity > 0)
-          {
-            digitalWrite(LED_BUILTIN, HIGH);
-            analogWrite(SPEAKER_PIN, SPEAKER_ON);
-            digitalWrite(SOLENOID_PIN, HIGH);
-          }
-          else
-          {
-            digitalWrite(LED_BUILTIN, LOW);
-            analogWrite(SPEAKER_PIN, SPEAKER_OFF);
-            digitalWrite(SOLENOID_PIN, LOW);
-          } 
-        //}
+      /*
+      This code does the following:
+        * Turns on LED if note should be playing
+        * Turns on speaker if note should be playing
+        * Turns on solenoid if note should be playing
+      if (curr_velocity > 0)
+      {
+        digitalWrite(LED_BUILTIN, HIGH);
+        analogWrite(SPEAKER_PIN, SPEAKER_ON);
+        digitalWrite(SOLENOID_PIN, HIGH);
       }
+      else
+      {
+        digitalWrite(LED_BUILTIN, LOW);
+        analogWrite(SPEAKER_PIN, SPEAKER_OFF);
+        digitalWrite(SOLENOID_PIN, LOW);
+      } 
+      */
+      Current_Data = NOTE; // Collecting note data next
     }
   }
-  step_go_to = (int)(curr_note) * 100;
 }
 
+/*
+  Handles the stepper
+
+  positive steps are UP
+  negative steps are DOWN
+  start at step 0
+  dir = false is the UP direction
+  dir = true is the DOWN direction
+*/
 void Handle_Stepper()
 {
- if (step != step_go_to)
+ if (step != step_go_to) // If we are not where we should be
   {
-    //digitalWrite(LED_BUILTIN, HIGH);
-    if (step > step_go_to)
+    if (step > step_go_to) // If we need to move down
     {
-      dir = true;
+      dir = true; // True = down
       digitalWrite(DIR_PIN, dir);         // Update direction pin
       TMCdriver.shaft(dir);               // Update driver direction
     }
-    else if (step < step_go_to)
+    else if (step < step_go_to) // If we need to move up
     {
-      dir = false;
+      dir = false; // False = up
       digitalWrite(DIR_PIN, dir);         // Update direction pin
       TMCdriver.shaft(dir);               // Update driver direction
     }
 
-    int step_delay = STEP_DELAY_RAMP_START;
-    while (step != step_go_to)
+    int step_delay = STEP_DELAY_RAMP_START; //Initialize the step delay
+    digitalWrite(LED_BUILTIN, HIGH); // Turn on LED while moving
+    while (step != step_go_to) // While we are not where we should be
     {
-      if (step_delay != STEP_DELAY)
+      if (step_delay != STEP_DELAY) // If the step_delay ramp does not yet equal the step delay
       {
-        step_delay = step_delay - STEP_DELAY_RAMP;
+        step_delay = step_delay - STEP_DELAY_RAMP; // Decrease the step delay by the amount we want to ramp it
       }
       delayMicroseconds(step_delay);
       digitalWrite(STEP_PIN, HIGH);
       delayMicroseconds(step_delay);
       digitalWrite(STEP_PIN, LOW);
-      if (dir)
+      if (dir) // DOWN
       {
         step--;
       }
-      else
+      else // UP
       {
         step++;
       }
+#ifdef SERIAL_MONITOR
+      Serial.print("STEP: ");
+      Serial.println(step);
+#endif
     }
-    //digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_BUILTIN, LOW); // Done moving turn off LED
+  }
+}
+
+// THIS FUCNTION ASSUMES THE CURR_NOTE IS THE SOLENOID TRIGGER
+void Handle_Solenoid()
+{
+  if (curr_velocity > 0 )
+  {
+    digitalWrite(SOLENOID_PIN, HIGH);
+  }
+  else
+  {
+    digitalWrite(SOLENOID_PIN, LOW);
   }
 }
 
@@ -384,6 +406,8 @@ void setup() {
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(SOLENOID_PIN, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+  //pinMode(SPEAKER_PIN, OUTPUT);
 
   // TMC2209 settings
   TMCdriver.toff(5);                  // Enable driver in software
@@ -396,9 +420,6 @@ void setup() {
   digitalWrite(DIR_PIN, dir);
   TMCdriver.shaft(dir);
 
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(SPEAKER_PIN, OUTPUT);
-
   analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY); //Initialized speaker frequency
   analogWrite(SPEAKER_PIN, SPEAKER_OFF);
   Serial.println("GPIO Initialized");
@@ -408,15 +429,12 @@ void setup() {
 
 void loop()
 {
-/*
-  delayMicroseconds(10000000);
-  digitalWrite(SOLENOID_PIN, HIGH);
-  delayMicroseconds(10000000);
-  digitalWrite(SOLENOID_PIN, LOW);
-*/
 
   Handle_Serial_Input();
 
+  //Input_Step_For_Testing();
+
+/*
   if (curr_velocity > 0)
   {
     digitalWrite(SOLENOID_PIN, HIGH);
@@ -427,10 +445,19 @@ void loop()
     digitalWrite(SOLENOID_PIN, LOW);
     digitalWrite(LED_BUILTIN, LOW);
   }
-
-  //Input_Step_For_Testing();
-
+*/
 
   Handle_Stepper();
+
+/*
+  if (curr_note == SOLENOID_TRIGGER())
+  {
+    Handle_Solenoid();
+  }
+  else
+  {
+    Handle_Stepper();
+  }
+  */
   
 }
