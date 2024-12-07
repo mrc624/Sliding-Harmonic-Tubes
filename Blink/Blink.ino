@@ -4,6 +4,13 @@
 
 // CONFIGS
 //#define SERIAL_MONITOR 1
+//#define SPEAKER 1
+//#define MANUAL_STEP_INPUT 1
+// PIPE CONFIGS
+//#define CONFIG_PIPE1 1
+//#define CONFIG_PIPE2 1 
+//#define CONFIG_PIPE3 1
+//#define CONFIG_PIPE_BASS 1
 
 #define DIR_PIN          18  // Direction
 #define STEP_PIN         19  // Step
@@ -20,9 +27,9 @@
 #define DEFAULT_FREQUENCY 0
 #define SEMITONES_IN_OCTAVE 12
 
-#define STEP_DELAY_RAMP_START 500
-#define STEP_DELAY_RAMP 10
-#define STEP_DELAY 250
+#define STEP_DELAY_RAMP_START 250
+#define STEP_DELAY_RAMP 50
+#define STEP_DELAY 100
 
 enum Receiving_Data
 {
@@ -273,12 +280,11 @@ void Handle_Serial_Input()
       Serial.print("STEP GO TO: ");
       Serial.println(step_go_to);
 #endif
-      
-      // The following code converts the midi note to a frequency value for speaker output
-      /*
+
+#ifdef SPEAKER
       int freq = get_note_frequency((MidiNote)(curr_note));
       analogWriteFrequency(SPEAKER_PIN, freq);
-      */
+#endif
 
       Current_Data = VELOCITY; // We are now collecting the velocity data
     }
@@ -286,25 +292,16 @@ void Handle_Serial_Input()
     {
 
       curr_velocity = (int)(data_char); // Convert the data_char to a velocity value
-
-      /*
-      This code does the following:
-        * Turns on LED if note should be playing
-        * Turns on speaker if note should be playing
-        * Turns on solenoid if note should be playing
+#ifdef SPEAKER
       if (curr_velocity > 0)
       {
-        digitalWrite(LED_BUILTIN, HIGH);
         analogWrite(SPEAKER_PIN, SPEAKER_ON);
-        digitalWrite(SOLENOID_PIN, HIGH);
       }
       else
       {
-        digitalWrite(LED_BUILTIN, LOW);
         analogWrite(SPEAKER_PIN, SPEAKER_OFF);
-        digitalWrite(SOLENOID_PIN, LOW);
       } 
-      */
+#endif
       Current_Data = NOTE; // Collecting note data next
     }
   }
@@ -312,6 +309,8 @@ void Handle_Serial_Input()
 
 /*
   Handles the stepper
+
+  THIS FUNCTION ASSUMES THAT THE CURRENT NOTE IS NOT THE SOLENOID TRIGGER
 
   positive steps are UP
   negative steps are DOWN
@@ -340,14 +339,14 @@ void Handle_Stepper()
     digitalWrite(LED_BUILTIN, HIGH); // Turn on LED while moving
     while (step != step_go_to) // While we are not where we should be
     {
-      if (step_delay != STEP_DELAY) // If the step_delay ramp does not yet equal the step delay
-      {
-        step_delay = step_delay - STEP_DELAY_RAMP; // Decrease the step delay by the amount we want to ramp it
-      }
       delayMicroseconds(step_delay);
       digitalWrite(STEP_PIN, HIGH);
       delayMicroseconds(step_delay);
       digitalWrite(STEP_PIN, LOW);
+      if (step_delay != STEP_DELAY) // If the step_delay ramp does not yet equal the step delay
+      {
+        step_delay = step_delay - STEP_DELAY_RAMP; // Decrease the step delay by the amount we want to ramp it
+      }
       if (dir) // DOWN
       {
         step--;
@@ -365,7 +364,14 @@ void Handle_Stepper()
   }
 }
 
-// THIS FUCNTION ASSUMES THE CURR_NOTE IS THE SOLENOID TRIGGER
+/*
+This function handles the stepper
+
+THIS FUNCTION ASSUMES THAT THE SOLENOID TRIGGER IS THE CURRENT NOTE
+
+If velocity > 0, turn on the pin, else turn it off
+
+*/
 void Handle_Solenoid()
 {
   if (curr_velocity > 0 )
@@ -429,28 +435,13 @@ void setup() {
 
 void loop()
 {
-
+#ifdef MANUAL_STEP_INPUT
+  Input_Step_For_Testing();
+#else
   Handle_Serial_Input();
+#endif
 
-  //Input_Step_For_Testing();
-
-/*
-  if (curr_velocity > 0)
-  {
-    digitalWrite(SOLENOID_PIN, HIGH);
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-  else
-  {
-    digitalWrite(SOLENOID_PIN, LOW);
-    digitalWrite(LED_BUILTIN, LOW);
-  }
-*/
-
-  Handle_Stepper();
-
-/*
-  if (curr_note == SOLENOID_TRIGGER())
+  if (curr_note == SOLENOID_TRIGGER)
   {
     Handle_Solenoid();
   }
@@ -458,6 +449,4 @@ void loop()
   {
     Handle_Stepper();
   }
-  */
-  
 }
