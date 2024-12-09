@@ -1,51 +1,51 @@
-#include <SPI.h>
-#include <TMC5160.h>
+#include <TMCStepper.h>
 
-TMC5160 stepper;
+#define EN_PIN           15 // Enable
+#define DIR_PIN          2 // Direction
+#define STEP_PIN         4 // Step
+#define CS_PIN           5 // Chip select
+#define SW_MOSI          18 // Software Master Out Slave In (MOSI)
+#define SW_MISO          19 // Software Master In Slave Out (MISO)
+#define SW_SCK           21 // Software Slave Clock (SCK)
 
-// HW-SPI-2
-#define SPI2_MOSI_PIN  PC3
-#define SPI2_SCK_PIN   PA5
-#define SPI2_MISO_PIN  PC2
-#define SPI2_NSS_PIN   PB12
-#define SPI2_NSS2_PIN  PA4
-SPIClass SPI_2(SPI2_MOSI_PIN, SPI2_MISO_PIN, SPI2_SCK_PIN);
+#define R_SENSE 0.075f
 
+TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK);
 
-void setup(){
+bool dir = true;
 
-   /* TMC5160 as DC motor driver */
-   SPI_2.setMISO(SPI2_MISO_PIN);
-   SPI_2.setMOSI(SPI2_MOSI_PIN);
-   SPI_2.setSCLK(SPI2_SCK_PIN);
-   SPI_2.begin();
-   SPI_2.beginTransaction( SPISettings(100000, MSBFIRST, SPI_MODE3));
-   
-   pinMode(SPI2_NSS2_PIN, OUTPUT);
-   stepper.begin(&SPI_2, false, SPI2_NSS2_PIN);   // DC0 DC1
-   stepper.setDCMotorMode(false); // no torque Limit
-   stepper.setDCMotor(0,0); // set DC Torque Mode
-   stepper.setEncoder(0);   // enable Encode
- 
+void setup() {
+	Serial.begin(9600);
+	while(!Serial);
+	Serial.println("Start...");
+	driver.begin(); 			// Initiate pins and registeries
+	driver.rms_current(2000); 	// Set stepper current to 600mA. The command is the same as command TMC2130.setCurrent(600, 0.11, 0.5);
+	driver.en_pwm_mode(0);  	// Enable extremely quiet stepping
+
+	pinMode(EN_PIN, OUTPUT);
+	pinMode(STEP_PIN, OUTPUT);
+	digitalWrite(EN_PIN, LOW); 	// Enable driver in hardware
+
+	Serial.print("DRV_STATUS=0b");
+	Serial.println(driver.DRV_STATUS(), BIN);
 }
 
-void loop()
-{
-      // set Motor 1 to Max 
-      stepper.setDCMotor(255,0); 
-
-      delay(5000);
-      
-      // set Motor 2 to Max 
-      stepper.setDCMotor(0,255);
-
-      delay(5000);
-
-      // set Motor 2 to -Max 
-      stepper.setDCMotor(0,-255);
-      
-      delay(5000);
-
-      // all off 
-      stepper.setDCMotor(0,0);  
-}s
+void loop() {
+	digitalWrite(STEP_PIN, HIGH);
+	delayMicroseconds(1);
+	digitalWrite(STEP_PIN, LOW);
+	delayMicroseconds(1);
+	uint32_t ms = millis();
+	static uint32_t last_time = 0;
+	if ((ms - last_time) > 5000) {
+		if (dir) {
+			Serial.println("Dir -> 0");
+			driver.shaft(0);
+		} else {
+			Serial.println("Dir -> 1");
+			driver.shaft(1);
+		}
+		dir = !dir;
+		last_time = ms;
+	}
+}
