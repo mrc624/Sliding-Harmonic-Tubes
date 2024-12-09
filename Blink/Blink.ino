@@ -4,18 +4,27 @@
 
 // CONFIGS
 //#define SERIAL_MONITOR 1
+#define LED_WHEN_STEP 1
 //#define SPEAKER 1
 //#define MANUAL_INPUT 1
 // PIPE CONFIGS
-//#define CONFIG_PIPE1 1
+#define CONFIG_PIPE1 1
 //#define CONFIG_PIPE2 1 
 //#define CONFIG_PIPE3 1
 //#define CONFIG_PIPE_BASS 1
 
-#ifdef CONFIG_PIPE_1 // Pipe 1 Config
+#define OUT_OF_RANGE_NOTE _C_2
+
+#define MAX_STEP 14000
+#define MIN_STEP 0
+
+#ifdef CONFIG_PIPE1 // Pipe 1 Config
+
+  #define MIN_NOTE 0 // NOT SET YET
+  #define MAX_NOTE 120 // NOT SET YET
 
 #elif CONFIG_PIPE_2 // Pipe 2 Config
-
+  
 #elif CONFIG_PIPE_3 // Pipe 3 Config
 
 #elif CONFIG_PIPE_BASS // Bass Pipe Config
@@ -25,7 +34,9 @@
 // Pin defines
 #define DIR_PIN          18  // Direction
 #define STEP_PIN         19  // Step
+#define HOME_PIN         21  // Pin connected to homing DIP switch
 #define SOLENOID_PIN     5   // Solenoid
+#define SPEAKER_PIN      4   // Speaker
 #define SW_TX            17  // Hardware Serial TX pin
 #define SW_RX            16  // Hardware Serial RX pin
 
@@ -34,19 +45,30 @@
 #define DRIVER_ADDRESS 0b00   // Driver address for MS1/MS2 configuration
 
 #ifdef SPEAKER
-  #define SPEAKER_PIN 4
   #define SPEAKER_OFF 0
   #define SPEAKER_ON 128
   #define DEFAULT_FREQUENCY 0
   #define SEMITONES_IN_OCTAVE 12
 #endif
 
+#define DIR_DOWN true
+#define DIR_UP false
+
 // Ramp
 #define STEP_DELAY_RAMP_START 500
 #define STEP_DELAY_RAMP 10
-#define STEP_DELAY 250
+#define STEP_DELAY 100
+#define STEPS_TO_DECELERATE ( (STEP_DELAY_RAMP_START - STEP_DELAY) / STEP_DELAY_RAMP )
+
+#define STEP_DELAY_HOME 500
+#define STEPS_MOVE_WHEN_HOME 1000
+#define STEP_OFFSET 100 // The amount of steps above the homing
+#define HOMED LOW // GPIO reads low when homed
+#define NOT_HOMED HIGH // GPIO reads high when note homed
+#define DEBOUNCE_THRESHOLD 10
 
 #define SOLENOID_TRIGGER C_0
+#define HOME_TRIGGER C_s_0
 
 enum Receiving_Data
 {
@@ -254,15 +276,17 @@ String MidiNoteNames[] = {
   "C8", "C#8", "D8", "D#8", "E8", "F8", "F#8", "G8"
 };
 
-bool solenoid_flag = false;
-bool play_note = false;
-int solenoid_velocity = 0;
+bool homed = false;
 
 //Receiving Midi
 String data = "";
 Receiving_Data Current_Data = NOTE;
 int curr_velocity;
+#ifdef MANUAL_INPUT
+MidiNote curr_note = A_4;
+#else
 MidiNote curr_note;
+#endif
 
 //Stepper
 bool dir = false;
@@ -270,6 +294,21 @@ int step = 0;
 int step_go_to = 0;
 HardwareSerial TMCSerial(1);  // Use Serial1 for UART communication
 TMC2209Stepper TMCdriver(&TMCSerial, R_SENSE, DRIVER_ADDRESS);
+
+// Functions to get note step values
+int get_step_from_note(MidiNote note)
+{
+  if (note > MAX_NOTE || note < MIN_NOTE)
+  {
+    return OUT_OF_RANGE_NOTE;
+  }
+  int note_step = OUT_OF_RANGE_NOTE;
+  switch(note)
+  {
+    
+  }
+  return note_step;
+}
 
 #ifdef SPEAKER
 int get_note_frequency(MidiNote note)
@@ -325,6 +364,125 @@ void Handle_Serial_Input()
 }
 
 /*
+  Should read HIGH when not homed, and LOW when homed
+*/
+void Home_Stepper()
+{
+
+  uint debounce = 0;
+
+  // Begin homing sequence
+  if (digitalRead(HOME_PIN) != HOMED)
+  {
+#ifdef SERIAL_MONITOR
+    Serial.println("HOMING: NOT HOMED");
+#endif
+    digitalWrite(DIR_PIN, DIR_DOWN); //always moving down, becuase we are above it
+#ifdef LED_WHEN_STEP
+    digitalWrite(LED_BUILTIN, HIGH);
+#endif
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: MOVING DOWN");
+#endif
+    while(debounce <= DEBOUNCE_THRESHOLD)
+    {
+      delayMicroseconds(STEP_DELAY_HOME);
+      digitalWrite(STEP_PIN, HIGH);
+      delayMicroseconds(STEP_DELAY_HOME);
+      digitalWrite(STEP_PIN, LOW);
+      if (digitalRead(HOME_PIN) == HOMED)
+      {
+#ifdef SERIAL_MONITOR
+        Serial.println("HOMING: DEBOUNCE");
+#endif
+        debounce++;
+      }
+    }
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: HOMED");
+#endif
+  // We are now touching the switch
+
+  //Move it up some steps
+  step = 0;
+  step_go_to = STEPS_MOVE_WHEN_HOME;
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: MOVING UP");
+#endif
+#ifdef LED_WHEN_STEP
+  digitalWrite(LED_BUILTIN, HIGH);
+#endif
+  Handle_Stepper();
+#ifdef LED_WHEN_STEP
+  digitalWrite(LED_BUILTIN, LOW);
+#endif
+
+  //Make sure that the pin is not homed, or something is wrong
+  if (digitalRead(HOME_PIN) == HOMED)
+  {
+  #ifdef SERIAL_MONITOR
+    Serial.println("HOMING: FAILED");
+  #endif
+    homed = false;
+  }
+
+  debounce = 0; // Reset debounce
+
+  //Bring it back down until it touches the switch
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: MOVING DOWN");
+#endif
+  digitalWrite(DIR_PIN, DIR_DOWN); //always moving down, becuawse we are above it
+#ifdef LED_WHEN_STEP
+  digitalWrite(LED_BUILTIN, HIGH);
+#endif
+  while(debounce <= DEBOUNCE_THRESHOLD)
+  {
+    delayMicroseconds(STEP_DELAY_HOME);
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(STEP_DELAY_HOME);
+    digitalWrite(STEP_PIN, LOW);
+    if (digitalRead(HOME_PIN) == HOMED)
+    {
+#ifdef SERIAL_MONITOR
+      Serial.println("HOMING: DEBOUNCE");
+#endif
+      debounce++;
+    }
+  }
+#ifdef LED_WHEN_STEP
+  digitalWrite(LED_BUILTIN, LOW);
+#endif
+
+  // We have now homed the pipe
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: HOMED");
+#endif
+  // Now we will add some steps so it is not hitting the switch while playing
+  step = 0;
+  step_go_to = STEP_OFFSET;
+#ifdef LED_WHEN_STEP
+  digitalWrite(LED_BUILTIN, HIGH);
+#endif
+  Handle_Stepper();
+#ifdef LED_WHEN_STEP
+  digitalWrite(LED_BUILTIN, LOW);
+#endif
+
+  //Zero values
+  step_go_to = 0;
+  step = 0;
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: OFFSET SET");
+  Serial.println("HOMING: COMPLETED");
+#endif
+  homed = true;
+  curr_note = OUT_OF_RANGE_NOTE;
+}
+
+/*
   Handles the stepper
 
   THIS FUNCTION ASSUMES THAT THE CURRENT NOTE IS NOT THE SOLENOID TRIGGER
@@ -341,29 +499,37 @@ void Handle_Stepper()
   {
     if (step > step_go_to) // If we need to move down
     {
-      dir = true; // True = down
+      dir = DIR_DOWN; // True = down
       digitalWrite(DIR_PIN, dir);         // Update direction pin
       TMCdriver.shaft(dir);               // Update driver direction
     }
     else if (step < step_go_to) // If we need to move up
     {
-      dir = false; // False = up
+      dir = DIR_UP; // False = up
       digitalWrite(DIR_PIN, dir);         // Update direction pin
       TMCdriver.shaft(dir);               // Update driver direction
     }
 
     int step_delay = STEP_DELAY_RAMP_START; //Initialize the step delay
+  #ifdef LED_WHEN_STEP
     digitalWrite(LED_BUILTIN, HIGH); // Turn on LED while moving
+  #endif
     while (step != step_go_to) // While we are not where we should be
     {
       delayMicroseconds(step_delay);
       digitalWrite(STEP_PIN, HIGH);
       delayMicroseconds(step_delay);
       digitalWrite(STEP_PIN, LOW);
-      if (step_delay != STEP_DELAY) // If the step_delay ramp does not yet equal the step delay
+
+      if (abs(step - step_go_to) <= STEPS_TO_DECELERATE) // Decelerate if true
       {
-        step_delay = step_delay - STEP_DELAY_RAMP; // Decrease the step delay by the amount we want to ramp it
+        step_delay = step_delay + STEP_DELAY_RAMP;
       }
+      else if (step_delay != STEP_DELAY) // Accelerate if true
+      {
+        step_delay = step_delay - STEP_DELAY_RAMP;
+      }
+
       if (dir) // DOWN
       {
         step--;
@@ -372,12 +538,10 @@ void Handle_Stepper()
       {
         step++;
       }
-#ifdef SERIAL_MONITOR
-      Serial.print("STEP: ");
-      Serial.println(step);
-#endif
     }
+#ifdef LED_WHEN_STEP
     digitalWrite(LED_BUILTIN, LOW); // Done moving turn off LED
+#endif
   }
 }
 
@@ -410,17 +574,27 @@ void Input_Step_For_Testing()
     if (str == "ON")
     {
       digitalWrite(SOLENOID_PIN, HIGH);
+#ifdef SERIAL_MONITOR
       Serial.println("SOLENOID: ON");
+#endif
     }
     else if (str == "OFF")
     {
       digitalWrite(SOLENOID_PIN, LOW);
+#ifdef SERIAL_MONITOR
       Serial.println("SOLENOID: OFF");
+#endif
+    }
+    else if (str == "HOME")
+    {
+      Home_Stepper();
     }
     else
     {
       step_go_to = str.toInt();
+#ifdef SERIAL_MONITOR
       Serial.print("GOING TO STEP: ");
+#endif
       Serial.println(step_go_to);
     }
   }
@@ -432,9 +606,11 @@ void setup() {
 
   while (!Serial) {
     // Wait for Serial connection
-    delay(10);  
+    delayMicroseconds(100);  
   }
+#ifdef SERIAL_MONITOR
   Serial.println("Serial Initialized");
+#endif
 
   TMCSerial.begin(9600, SERIAL_8N1, SW_RX, SW_TX);  // Start UART for TMC2209
   TMCdriver.begin();                  // Initialize TMC2209 driver
@@ -444,7 +620,10 @@ void setup() {
   pinMode(DIR_PIN, OUTPUT);
   pinMode(SOLENOID_PIN, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
-  //pinMode(SPEAKER_PIN, OUTPUT);
+#ifdef SPEAKER
+  pinMode(SPEAKER_PIN, OUTPUT);
+#endif
+  pinMode(HOME_PIN, INPUT);
 
   // TMC2209 settings
   TMCdriver.toff(5);                  // Enable driver in software
@@ -460,26 +639,46 @@ void setup() {
 #ifdef SPEAKER
   analogWriteFrequency(SPEAKER_PIN, DEFAULT_FREQUENCY); //Initialized speaker frequency
   analogWrite(SPEAKER_PIN, SPEAKER_OFF);
-  Serial.println("GPIO Initialized");
 #endif
 
-  Serial.println("System Ready");
+  Home_Stepper();
 }
 
 void loop()
 {
+  /*
+  delayMicroseconds(1000000);
+  if (digitalRead(HOME_PIN) == HOMED)
+  {
+    Serial.println("HOMED");
+  }
+  else if (digitalRead(HOME_PIN) == NOT_HOMED)
+  {
+    Serial.println("NOT HOMED");
+  }
+  else
+  {
+    Serial.println("ERROR");
+  }
+  */
+  
 #ifdef MANUAL_INPUT
   Input_Step_For_Testing();
+  Handle_Stepper();
 #else
   Handle_Serial_Input();
-#endif
-
   if (curr_note == SOLENOID_TRIGGER)
   {
     Handle_Solenoid();
   }
-  else
+  else if (curr_note == HOME_TRIGGER)
+  {
+    Home_Stepper();
+  }
+  else if (curr_note != OUT_OF_RANGE_NOTE)
   {
     Handle_Stepper();
   }
+#endif
+  
 }
