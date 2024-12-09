@@ -646,22 +646,6 @@ void setup() {
 
 void loop()
 {
-  /*
-  delayMicroseconds(1000000);
-  if (digitalRead(HOME_PIN) == HOMED)
-  {
-    Serial.println("HOMED");
-  }
-  else if (digitalRead(HOME_PIN) == NOT_HOMED)
-  {
-    Serial.println("NOT HOMED");
-  }
-  else
-  {
-    Serial.println("ERROR");
-  }
-  */
-  
 #ifdef MANUAL_INPUT
   Input_Step_For_Testing();
   Handle_Stepper();
