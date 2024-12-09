@@ -426,6 +426,7 @@ void Home_Stepper()
     Serial.println("HOMING: FAILED");
   #endif
     homed = false;
+    return;
   }
 
   debounce = 0; // Reset debounce
