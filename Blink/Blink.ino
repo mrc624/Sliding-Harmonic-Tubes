@@ -7,10 +7,10 @@
 //#define SPEAKER 1
 #define MANUAL_INPUT 1
 // PIPE CONFIGS
-//#define CONFIG_PIPE1 1
+#define CONFIG_PIPE1 1
 //#define CONFIG_PIPE2 1 
 //#define CONFIG_PIPE3 1
-#define CONFIG_PIPE_BASS 1
+//#define CONFIG_PIPE_BASS 1
 
 #define OUT_OF_RANGE_NOTE _C_2
 
@@ -74,7 +74,7 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 #define STEP_DELAY 100
 
 // Pin defines
-#define HOME_PIN         21  // Pin connected to homing DIP switch
+#define HOME_PIN         4  // Pin connected to homing DIP switch
 #define SOLENOID_PIN     5   // Solenoid
 #define DIR_PIN          18  // Direction
 #define STEP_PIN         19  // Step
@@ -87,7 +87,7 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 #endif
 
 #ifdef SPEAKER
-  #define SPEAKER_PIN      4   // Speaker
+  #define SPEAKER_PIN      0   // Speaker THIS NEEDS A NEW PIN VAL
   #define SPEAKER_OFF 0
   #define SPEAKER_ON 128
   #define DEFAULT_FREQUENCY 0
@@ -588,7 +588,7 @@ void Handle_Stepper()
     }
     else if (step < step_go_to) // If we need to move up
     {
-      Serial.println("Stepping Down");
+      Serial.println("Stepping Up");
       dir = DIR_UP; // False = up
 #ifdef CONFIG_PIPE_BASS
       driver.shaft(DIR_VAL_UP);
