@@ -23,7 +23,35 @@
 
 #elif CONFIG_PIPE_2 // Pipe 2 Config
   
+  #define MIN_NOTE 0 // NOT SET YET
+  #define MAX_NOTE 120 // NOT SET YET
+  #define MAX_STEP 14000
+  #define MIN_STEP 0  
+
+
+
+// Running at 45 PSI, WITHOUT SOLENOID ON
+  #define STEP_E6 500
+  #define STEP_Ds6 3000
+  #define STEP_As5 4600
+  #define STEP_E6 5800
+  #define STEP_Ds6_2 8500
+  #define STEP_B5 9000
+  #define STEP_Ds6_3 14000
+
+
 #elif CONFIG_PIPE_3 // Pipe 3 Config
+
+  #define MIN_NOTE 0 // NOT SET YET
+  #define MAX_NOTE 120 // NOT SET YET
+  #define MAX_STEP 14000
+  #define MIN_STEP 0  
+
+  //Running at 15 PSI with solenoid on
+
+  #define STEP_D5 1500
+  
+
 
 #elif CONFIG_PIPE_BASS // Bass Pipe Config
 
@@ -62,6 +90,7 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 
 // Home
 #define STEPS_MOVE_WHEN_HOME 10000
+#define STEP_DELAY_HOME STEP_DELAY_RAMP_START
 
 #else
 
@@ -71,7 +100,7 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 // Ramp
 #define STEP_DELAY_RAMP_START 500
 #define STEP_DELAY_RAMP 10
-#define STEP_DELAY 100
+#define STEP_DELAY 150
 
 // Pin defines
 #define HOME_PIN         4  // Pin connected to homing DIP switch
@@ -100,11 +129,11 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 
 // Homing
 #define STEPS_TO_DECELERATE ( (STEP_DELAY_RAMP_START - STEP_DELAY) / STEP_DELAY_RAMP )
-#define STEP_DELAY_HOME STEP_DELAY_RAMP_START
 #define STEP_OFFSET 100 // The amount of steps above the homing
 #define HOMED LOW // GPIO reads low when homed
 #define NOT_HOMED HIGH // GPIO reads high when note homed
 #define DEBOUNCE_THRESHOLD 10
+#define STEP_DELAY_HOME 250
 
 // Trigger notes
 #define SOLENOID_TRIGGER C_0
@@ -566,7 +595,7 @@ void Handle_Stepper()
 {
  if (step != step_go_to) // If we are not where we should be
   {
-
+    Serial.println("Moving");
     if (step_go_to > MAX_STEP || step_go_to < MIN_STEP) // FAIL TO AVOID DAMAGE
     {
       #ifdef SERIAL_MONITOR
@@ -659,6 +688,7 @@ void Handle_Solenoid()
   {
     digitalWrite(SOLENOID_PIN, LOW);
   }
+  curr_note = OUT_OF_RANGE_NOTE;
 }
 
 #ifdef MANUAL_INPUT
@@ -773,7 +803,7 @@ void loop()
   {
     Home_Stepper();
   }
-  else if (curr_note != OUT_OF_RANGE_NOTE)
+  else if (curr_note >= MIN_NOTE && curr_note <= MAX_NOTE)
   {
     Handle_Stepper();
   }
