@@ -86,15 +86,15 @@
 #ifdef CONFIG_PIPE_BASS
 
 // Pins
-#define EN_PIN           15 // Enable
-#define DIR_PIN          2 // Direction
-#define STEP_PIN         4 // Step
-#define CS_PIN           23 // Chip select WAS 5
-#define SW_MOSI          18 // Software Master Out Slave In (MOSI)
+#define EN_PIN           22 // Enable
+#define DIR_PIN          5 // Direction
+#define STEP_PIN         15 // Step
+#define CS_PIN           2 // Chip select WAS 5
+#define SW_MOSI          23 // Software Master Out Slave In (MOSI)
 #define SW_MISO          19 // Software Master In Slave Out (MISO)
-#define SW_SCK           21 // Software Slave Clock (SCK)
-#define HOME_PIN         22 // Pin connected to homing DIP switch
-#define SOLENOID_PIN     5 // Solenoid  WAS 23
+#define SW_SCK           18 // Software Slave Clock (SCK)
+#define HOME_PIN         21 // Pin connected to homing DIP switch
+#define SOLENOID_PIN     4 // Solenoid  WAS 23
 
 // Direction
 #define DIR_VAL_UP 1
@@ -107,7 +107,7 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 // Ramp
 #define STEP_DELAY_RAMP_START 150
 #define STEP_DELAY_RAMP 10
-#define STEP_DELAY 50 // 30 works
+#define STEP_DELAY 10 // 30 works
 
 // Home
 #define STEPS_MOVE_WHEN_HOME 10000
