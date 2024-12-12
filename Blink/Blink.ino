@@ -7,29 +7,46 @@
 //#define SPEAKER 1
 #define MANUAL_INPUT 1
 // PIPE CONFIGS
-#define CONFIG_PIPE1 1
+//#define CONFIG_PIPE1 1
 //#define CONFIG_PIPE2 1 
 //#define CONFIG_PIPE3 1
-//#define CONFIG_PIPE_BASS 1
+#define CONFIG_PIPE_BASS 1
 
 #define OUT_OF_RANGE_NOTE _C_2
 
-#ifdef CONFIG_PIPE1 // Pipe 1 Config
+#ifdef CONFIG_PIPE1 // Pipe 1 Confi
 
-  #define MIN_NOTE 0 // NOT SET YET
-  #define MAX_NOTE 120 // NOT SET YET
+  // Resonance at 7000 steps, roughly 5-6 PSI with solenoid on, slightly above resonance so solenoid triggersg
+
+  #define STEP_D4 1800
+  #define STEP_Cs4 4300
+  #define STEP_C4 6600
+  #define STEP_Gs4 8250
+  #define STEP_G4 10000
+  #define STEP_Fs4 11500
+  #define STEP_F4 14000
+
+  #define MIN_NOTE C_4
+  #define MAX_NOTE G_s_4
   #define MAX_STEP 14000
   #define MIN_STEP 0  
 
-#elif CONFIG_PIPE_2 // Pipe 2 Config
-  
-  #define MIN_NOTE 0 // NOT SET YET
-  #define MAX_NOTE 120 // NOT SET YET
+#elif CONFIG_PIPE2 // Pipe 2 Config
+
+  // Resonance at 7000 steps, roughly 5-6 PSI with solenoid on, slightly above resonance so solenoid triggers
+  #define STEP_D4 1800
+  #define STEP_Cs4 4300
+  #define STEP_C4 6600
+  #define STEP_Gs4 8000
+  #define STEP_G4 10000
+  #define STEP_Fs4 11500
+  #define STEP_F4 13750
+
+  #define MIN_NOTE C_4
+  #define MAX_NOTE G_s_4
   #define MAX_STEP 14000
   #define MIN_STEP 0  
-
-
-
+/*
 // Running at 45 PSI, WITHOUT SOLENOID ON
   #define STEP_E6 500
   #define STEP_Ds6 3000
@@ -38,19 +55,23 @@
   #define STEP_Ds6_2 8500
   #define STEP_B5 9000
   #define STEP_Ds6_3 14000
+  */
 
+#elif CONFIG_PIPE3 // Pipe 3 Config
 
-#elif CONFIG_PIPE_3 // Pipe 3 Config
+  // Resonance at 7000 steps, roughly 5-6 PSI with solenoid on, slightly above resonance so solenoid triggers
 
-  #define MIN_NOTE 0 // NOT SET YET
-  #define MAX_NOTE 120 // NOT SET YET
+  #define STEP_Ds4   100
+  #define STEP_D3    2800
+  #define STEP_E4    7700
+  #define STEP_Ds5   11000
+  #define STEP_D5    12750
+  #define STEP_F4    14000 // Slightly out of tune
+  
+  #define MIN_NOTE D_3 // NOT SET YET
+  #define MAX_NOTE D_s_5 // NOT SET YET
   #define MAX_STEP 14000
   #define MIN_STEP 0  
-
-  //Running at 15 PSI with solenoid on
-
-  #define STEP_D5 1500
-  
 
 
 #elif CONFIG_PIPE_BASS // Bass Pipe Config
@@ -68,12 +89,12 @@
 #define EN_PIN           15 // Enable
 #define DIR_PIN          2 // Direction
 #define STEP_PIN         4 // Step
-#define CS_PIN           5 // Chip select
+#define CS_PIN           23 // Chip select WAS 5
 #define SW_MOSI          18 // Software Master Out Slave In (MOSI)
 #define SW_MISO          19 // Software Master In Slave Out (MISO)
 #define SW_SCK           21 // Software Slave Clock (SCK)
 #define HOME_PIN         22 // Pin connected to homing DIP switch
-#define SOLENOID_PIN     23 // Solenoid
+#define SOLENOID_PIN     5 // Solenoid  WAS 23
 
 // Direction
 #define DIR_VAL_UP 1
@@ -369,15 +390,95 @@ TMC2209Stepper TMCdriver(&TMCSerial, R_SENSE, DRIVER_ADDRESS);
 // Functions to get note step values
 int get_step_from_note(MidiNote note)
 {
+#ifdef SERIAL_MONITOR
+  Serial.print("Curr_Note Value: ");
+  Serial.println((int)(note));
+#endif
+
   if (note > MAX_NOTE || note < MIN_NOTE)
   {
     return OUT_OF_RANGE_NOTE;
   }
   int note_step = OUT_OF_RANGE_NOTE;
+
   switch(note)
   {
-    
+#ifdef CONFIG_PIPE1
+    case D_4: 
+      note_step = STEP_D4; 
+      break;
+    case C_s_4: 
+      note_step = STEP_Cs4; 
+      break;
+    case C_4: 
+      note_step = STEP_C4; 
+      break;
+    case G_s_4: 
+      note_step = STEP_Gs4; 
+      break;
+    case G_4: 
+      note_step = STEP_G4; 
+      break;
+    case F_s_4: 
+      note_step = STEP_Fs4; 
+      break;
+    case F_4: 
+      note_step = STEP_F4; 
+      break;
+
+#elif CONFIG_PIPE2
+
+    case D_4: 
+      note_step = STEP_D4; 
+      break;
+    case C_s_4: 
+      note_step = STEP_Cs4; 
+      break;
+    case C_4: 
+      note_step = STEP_C4; 
+      break;
+    case G_s_4: 
+      note_step = STEP_Gs4; 
+      break;
+    case G_4: 
+      note_step = STEP_G4; 
+      break;
+    case F_s_4: 
+      note_step = STEP_Fs4; 
+      break;
+    case F_4: 
+      note_step = STEP_F4; 
+      break;
+
+#elif CONFIG_PIPE3
+
+    case D_s_4: 
+      note_step = STEP_Ds4; 
+      break;
+    case D_3: 
+      note_step = STEP_D3; 
+      break;
+    case E_4: 
+      note_step = STEP_E4; 
+      break;
+    case D_s_5: 
+      note_step = STEP_Ds5; 
+      break;
+    case D_5: 
+      note_step = STEP_D5; 
+      break;
+    case F_4: 
+      note_step = STEP_F4; 
+      break;
+
+#endif
+    default:
+      break;
   }
+#ifdef SERIAL_MONITOR
+  Serial.print("Note Step: ");
+  Serial.println(note_step);
+#endif
   return note_step;
 }
 
@@ -402,7 +503,8 @@ void Handle_Serial_Input()
 
       curr_note = (MidiNote)(data_char); // Convert char to midi value
 
-      step_go_to = (int)(curr_note) * 100; // Update the step go to
+      step_go_to = get_step_from_note(curr_note);
+      //step_go_to = (int)(curr_note) * 100; // Update the step go to
 #ifdef SERIAL_MONITOR
       Serial.print("STEP GO TO: ");
       Serial.println(step_go_to);
@@ -439,6 +541,8 @@ void Handle_Serial_Input()
 */
 void Home_Stepper()
 {
+
+  digitalWrite(SOLENOID_PIN, LOW);
 
   uint debounce = 0;
 
@@ -615,7 +719,7 @@ void Handle_Stepper()
       TMCdriver.shaft(dir);               // Update driver direction
 #endif
     }
-    else if (step < step_go_to) // If we need to move up
+    else if (step < step_go_to) // If we neeFd to move up
     {
       Serial.println("Stepping Up");
       dir = DIR_UP; // False = up
@@ -680,13 +784,14 @@ If velocity > 0, turn on the pin, else turn it off
 */
 void Handle_Solenoid()
 {
+  // The low and highs are switched to fix a bug, why it fixed it I don't know
   if (curr_velocity > 0 )
   {
-    digitalWrite(SOLENOID_PIN, HIGH);
+    digitalWrite(SOLENOID_PIN, LOW);
   }
   else
   {
-    digitalWrite(SOLENOID_PIN, LOW);
+    digitalWrite(SOLENOID_PIN, HIGH);
   }
   curr_note = OUT_OF_RANGE_NOTE;
 }
@@ -808,24 +913,4 @@ void loop()
     Handle_Stepper();
   }
 #endif
-  
-  /*
-  digitalWrite(STEP_PIN, HIGH);
-	delayMicroseconds(5);
-	digitalWrite(STEP_PIN, LOW);
-	delayMicroseconds(5);
-	uint32_t ms = millis();
-	static uint32_t last_time = 0;
-	if ((ms - last_time) > 5000) {
-		if (dir) {
-			Serial.println("Dir -> 0");
-			driver.shaft(0);
-		} else {
-			Serial.println("Dir -> 1");
-			driver.shaft(1);
-		}
-		dir = !dir;
-		last_time = ms;
-    
-	}*/
 }
