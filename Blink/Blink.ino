@@ -105,9 +105,9 @@
 TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK);
 
 // Ramp
-#define STEP_DELAY_RAMP_START 150
-#define STEP_DELAY_RAMP 10
-#define STEP_DELAY 10 // 30 works
+#define STEP_DELAY_RAMP_START 100
+#define STEP_DELAY_RAMP 1
+#define STEP_DELAY 3// 30 works
 
 // Home
 #define STEPS_MOVE_WHEN_HOME 10000
