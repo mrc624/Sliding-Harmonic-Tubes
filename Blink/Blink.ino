@@ -83,7 +83,7 @@
   #define STEP_C4   137000 // Slightly out of tune
   #define STEP_B3   156000 // Slightly out of tune
 
-  #define MIN_NOTE B_3
+  #define MIN_NOTE A_s_3
   #define MAX_NOTE D_s_4
   #define MAX_STEP 160000
   #define MIN_STEP 0  
