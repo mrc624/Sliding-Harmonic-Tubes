@@ -2,10 +2,10 @@
 #include <TMCStepper.h>  // TMCstepper library
 
 // CONFIGS
-#define SERIAL_MONITOR 1
+//#define SERIAL_MONITOR 1
 #define LED_WHEN_STEP 1
 //#define SPEAKER 1
-#define MANUAL_INPUT 1
+//#define MANUAL_INPUT 1
 // PIPE CONFIGS
 //#define CONFIG_PIPE1 1
 //#define CONFIG_PIPE2 1 
@@ -76,8 +76,15 @@
 
 #elif CONFIG_PIPE_BASS // Bass Pipe Config
 
-  #define MIN_NOTE 0 // NOT SET YET
-  #define MAX_NOTE 120 // NOT SET YET
+  #define STEP_As3  3000
+  #define STEP_Ds4  20000
+  #define STEP_D4   50000
+  #define STEP_Cs4  100000
+  #define STEP_C4   137000 // Slightly out of tune
+  #define STEP_B3   156000 // Slightly out of tune
+
+  #define MIN_NOTE B_3
+  #define MAX_NOTE D_s_4
   #define MAX_STEP 160000
   #define MIN_STEP 0  
 
@@ -105,23 +112,28 @@
 TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK);
 
 // Ramp
-#define STEP_DELAY_RAMP_START 100
+#define STEP_DELAY_RAMP_START 250
 #define STEP_DELAY_RAMP 1
-#define STEP_DELAY 3// 30 works
+#define MIN_STEP_DELAY 10
+#define MAX_STEP_DELAY 100
 
 // Home
 #define STEPS_MOVE_WHEN_HOME 10000
-#define STEP_DELAY_HOME STEP_DELAY_RAMP_START
+#define STEP_DELAY_HOME 50
+#define STEP_OFFSET 1000 // The amount of steps above the homing
 
 #else
 
 // Home
 #define STEPS_MOVE_WHEN_HOME 1000
+#define STEP_OFFSET 100 // The amount of steps above the homing
+#define STEP_DELAY_HOME 250
 
 // Ramp
-#define STEP_DELAY_RAMP_START 500
+#define STEP_DELAY_RAMP_START 400
 #define STEP_DELAY_RAMP 10
-#define STEP_DELAY 150
+#define MIN_STEP_DELAY 150
+#define MAX_STEP_DELAY 300
 
 // Pin defines
 #define HOME_PIN         4  // Pin connected to homing DIP switch
@@ -149,12 +161,9 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 #define DIR_UP false
 
 // Homing
-#define STEPS_TO_DECELERATE ( (STEP_DELAY_RAMP_START - STEP_DELAY) / STEP_DELAY_RAMP )
-#define STEP_OFFSET 100 // The amount of steps above the homing
 #define HOMED LOW // GPIO reads low when homed
 #define NOT_HOMED HIGH // GPIO reads high when note homed
 #define DEBOUNCE_THRESHOLD 10
-#define STEP_DELAY_HOME 250
 
 // Trigger notes
 #define SOLENOID_TRIGGER C_0
@@ -371,7 +380,7 @@ bool homed = false;
 //Receiving Midi
 String data = "";
 Receiving_Data Current_Data = NOTE;
-int curr_velocity;
+int curr_velocity = 100;
 #ifdef MANUAL_INPUT
 MidiNote curr_note = A_4;
 #else
@@ -471,6 +480,24 @@ int get_step_from_note(MidiNote note)
       note_step = STEP_F4; 
       break;
 
+#elif CONFIG_PIPE_BASS
+
+    case D_s_4: 
+      note_step = STEP_Ds4; 
+      break;
+    case D_4: 
+      note_step = STEP_D4; 
+      break;
+    case C_s_4: 
+      note_step = STEP_Cs4; 
+      break;
+    case C_4: 
+      note_step = STEP_C4; 
+      break;
+    case B_3: 
+      note_step = STEP_C4; 
+      break;
+
 #endif
     default:
       break;
@@ -563,20 +590,21 @@ void Home_Stepper()
 #ifdef SERIAL_MONITOR
   Serial.println("HOMING: MOVING DOWN");
 #endif
+    int step_count = 0;
     while(debounce <= DEBOUNCE_THRESHOLD)
     {
       delayMicroseconds(STEP_DELAY_HOME);
-#ifdef CONFIG_PIPE_BASS
       digitalWrite(STEP_PIN, HIGH);
-#else
-      digitalWrite(STEP_PIN, HIGH);
-#endif
       delayMicroseconds(STEP_DELAY_HOME);
-#ifdef CONFIG_PIPE_BASS
       digitalWrite(STEP_PIN, LOW);
-#else
-      digitalWrite(STEP_PIN, LOW);
+      step_count++;
+      if (step_count > MAX_STEP)
+      {
+#ifdef SERIAL_MONITOR
+        Serial.println("HOMING: DEBOUNCE");
 #endif
+        return;
+      }
       if (digitalRead(HOME_PIN) == HOMED)
       {
 #ifdef SERIAL_MONITOR
@@ -597,13 +625,25 @@ void Home_Stepper()
   //Move it up some steps
   step = 0;
   step_go_to = STEPS_MOVE_WHEN_HOME;
+#ifdef CONFIG_PIPE_BASS
+    driver.shaft(DIR_VAL_UP);
+#else
+    digitalWrite(DIR_PIN, DIR_UP); //always moving down, becuase we are above it
+#endif
 #ifdef SERIAL_MONITOR
   Serial.println("HOMING: MOVING UP");
 #endif
 #ifdef LED_WHEN_STEP
   digitalWrite(LED_BUILTIN, HIGH);
 #endif
-  Handle_Stepper();
+while (step != step_go_to)
+{
+  delayMicroseconds(STEP_DELAY_HOME);
+  digitalWrite(STEP_PIN, HIGH);
+  delayMicroseconds(STEP_DELAY_HOME);
+  digitalWrite(STEP_PIN, LOW);
+  step++;
+}
 #ifdef LED_WHEN_STEP
   digitalWrite(LED_BUILTIN, LOW);
 #endif
@@ -635,17 +675,9 @@ void Home_Stepper()
   while(debounce <= DEBOUNCE_THRESHOLD)
   {
       delayMicroseconds(STEP_DELAY_HOME);
-#ifdef CONFIG_PIPE_BASS
       digitalWrite(STEP_PIN, HIGH);
-#else
-      digitalWrite(STEP_PIN, HIGH);
-#endif
       delayMicroseconds(STEP_DELAY_HOME);
-#ifdef CONFIG_PIPE_BASS
       digitalWrite(STEP_PIN, LOW);
-#else
-      digitalWrite(STEP_PIN, LOW);
-#endif
     if (digitalRead(HOME_PIN) == HOMED)
     {
 #ifdef SERIAL_MONITOR
@@ -665,10 +697,25 @@ void Home_Stepper()
   // Now we will add some steps so it is not hitting the switch while playing
   step = 0;
   step_go_to = STEP_OFFSET;
+#ifdef CONFIG_PIPE_BASS
+    driver.shaft(DIR_VAL_UP);
+#else
+    digitalWrite(DIR_PIN, DIR_UP); //always moving down, becuase we are above it
+#endif
+#ifdef SERIAL_MONITOR
+  Serial.println("HOMING: MOVING UP");
+#endif
 #ifdef LED_WHEN_STEP
   digitalWrite(LED_BUILTIN, HIGH);
 #endif
-  Handle_Stepper();
+while (step != step_go_to)
+{
+  delayMicroseconds(STEP_DELAY_HOME);
+  digitalWrite(STEP_PIN, HIGH);
+  delayMicroseconds(STEP_DELAY_HOME);
+  digitalWrite(STEP_PIN, LOW);
+  step++;
+}
 #ifdef LED_WHEN_STEP
   digitalWrite(LED_BUILTIN, LOW);
 #endif
@@ -732,29 +779,27 @@ void Handle_Stepper()
     }
 
     int step_delay = STEP_DELAY_RAMP_START; //Initialize the step delay
+    int max_step_speed = MIN_STEP_DELAY * (100.0 / curr_velocity);
+    if (max_step_speed > MAX_STEP_DELAY)
+    {
+      max_step_speed = MAX_STEP_DELAY;
+    }
+    int decelerate_step = (STEP_DELAY_RAMP_START - max_step_speed) / STEP_DELAY_RAMP;
   #ifdef LED_WHEN_STEP
     digitalWrite(LED_BUILTIN, HIGH); // Turn on LED while moving
   #endif
     while (step != step_go_to) // While we are not where we should be
     {
       delayMicroseconds(step_delay);
-#ifdef CONFIG_PIPE_BASS
       digitalWrite(STEP_PIN, HIGH);
-#else
-      digitalWrite(STEP_PIN, HIGH);
-#endif
       delayMicroseconds(step_delay);
-#ifdef CONFIG_PIPE_BASS
       digitalWrite(STEP_PIN, LOW);
-#else
-      digitalWrite(STEP_PIN, LOW);
-#endif
 
-      if (abs(step - step_go_to) <= STEPS_TO_DECELERATE) // Decelerate if true
+      if (abs(step - step_go_to) <= decelerate_step) // Decelerate if true
       {
         step_delay = step_delay + STEP_DELAY_RAMP;
       }
-      else if (step_delay != STEP_DELAY) // Accelerate if true
+      else if (step_delay != max_step_speed) // Accelerate if true
       {
         step_delay = step_delay - STEP_DELAY_RAMP;
       }
@@ -819,6 +864,48 @@ void Input_Step_For_Testing()
     else if (str == "HOME")
     {
       Home_Stepper();
+    }
+    else if (str == "VELOCITY 100")
+    {
+      curr_velocity = 100;
+#ifdef SERIAL_MONITOR
+      Serial.println("VELOCITY: 100");
+#endif
+    }
+    else if (str == "VELOCITY 75")
+    {
+      curr_velocity = 75;
+#ifdef SERIAL_MONITOR
+      Serial.println("VELOCITY: 75");
+#endif
+    }
+    else if (str == "VELOCITY 50")
+    {
+      curr_velocity = 50;
+#ifdef SERIAL_MONITOR
+      Serial.println("VELOCITY: 50");
+#endif
+    }
+    else if (str == "VELOCITY 25")
+    {
+      curr_velocity = 25;
+#ifdef SERIAL_MONITOR
+      Serial.println("VELOCITY: 25");
+#endif
+    }
+    else if (str == "VELOCITY 10")
+    {
+      curr_velocity = 10;
+#ifdef SERIAL_MONITOR
+      Serial.println("VELOCITY: 10");
+#endif
+    }
+    else if (str == "VELOCITY 1")
+    {
+      curr_velocity = 1;
+#ifdef SERIAL_MONITOR
+      Serial.println("VELOCITY: 1");
+#endif
     }
     else
     {
