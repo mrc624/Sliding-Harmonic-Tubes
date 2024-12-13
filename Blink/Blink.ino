@@ -9,8 +9,8 @@
 // PIPE CONFIGS
 //#define CONFIG_PIPE1 1
 //#define CONFIG_PIPE2 1 
-//#define CONFIG_PIPE3 1
-#define CONFIG_PIPE_BASS 1
+#define CONFIG_PIPE3 1
+//#define CONFIG_PIPE_BASS 1
 
 #define OUT_OF_RANGE_NOTE _C_2
 
@@ -168,6 +168,8 @@ TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE, SW_MOSI, SW_MISO, SW_SCK
 // Trigger notes
 #define SOLENOID_TRIGGER C_0
 #define HOME_TRIGGER C_s_0
+
+#define VELOCITY_MAX 100
 
 enum Receiving_Data
 {
@@ -495,7 +497,7 @@ int get_step_from_note(MidiNote note)
       note_step = STEP_C4; 
       break;
     case B_3: 
-      note_step = STEP_C4; 
+      note_step = STEP_B3; 
       break;
 
 #endif
@@ -548,6 +550,10 @@ void Handle_Serial_Input()
     {
 
       curr_velocity = (int)(data_char); // Convert the data_char to a velocity value
+      if (curr_velocity > VELOCITY_MAX)
+      {
+        curr_velocity = VELOCITY_MAX;
+      }
 #ifdef SPEAKER
       if (curr_velocity > 0)
       {
@@ -568,6 +574,10 @@ void Handle_Serial_Input()
 */
 void Home_Stepper()
 {
+
+#ifdef CONFIG_PIPE_BASS
+  init_bass();
+#endif
 
   digitalWrite(SOLENOID_PIN, LOW);
 
@@ -829,14 +839,13 @@ If velocity > 0, turn on the pin, else turn it off
 */
 void Handle_Solenoid()
 {
-  // The low and highs are switched to fix a bug, why it fixed it I don't know
   if (curr_velocity > 0 )
   {
-    digitalWrite(SOLENOID_PIN, LOW);
+    digitalWrite(SOLENOID_PIN, HIGH);
   }
   else
   {
-    digitalWrite(SOLENOID_PIN, HIGH);
+    digitalWrite(SOLENOID_PIN, LOW);
   }
   curr_note = OUT_OF_RANGE_NOTE;
 }
@@ -919,6 +928,20 @@ void Input_Step_For_Testing()
 }
 #endif
 
+#ifdef CONFIG_PIPE_BASS
+void init_bass()
+{
+	driver.begin(); 			// Initiate pins and registeries
+	driver.rms_current(2000); 	// Set stepper current to 600mA. The command is the same as command TMC2130.setCurrent(600, 0.11, 0.5);
+	driver.en_pwm_mode(0);  	// Enable extremely quiet stepping
+
+  #ifdef SERIAL_MONITOR
+    Serial.print("DRV_STATUS=0b");
+    Serial.println(driver.DRV_STATUS(), BIN);
+  #endif
+}
+#endif
+
 void setup() {
   Serial.begin(9600);
 
@@ -931,18 +954,10 @@ void setup() {
 #endif
 
 #ifdef CONFIG_PIPE_BASS
-	driver.begin(); 			// Initiate pins and registeries
-	driver.rms_current(2000); 	// Set stepper current to 600mA. The command is the same as command TMC2130.setCurrent(600, 0.11, 0.5);
-	driver.en_pwm_mode(0);  	// Enable extremely quiet stepping
-
-	pinMode(EN_PIN, OUTPUT);
+  init_bass();
+  pinMode(EN_PIN, OUTPUT);
 	pinMode(STEP_PIN, OUTPUT);
 	digitalWrite(EN_PIN, LOW); 	// Enable driver in hardware
-
-  #ifdef SERIAL_MONITOR
-    Serial.print("DRV_STATUS=0b");
-    Serial.println(driver.DRV_STATUS(), BIN);
-  #endif
 #else
   TMCSerial.begin(9600, SERIAL_8N1, SW_RX, SW_TX);  // Start UART for TMC2209
   TMCdriver.begin();                  // Initialize TMC2209 driver
@@ -974,9 +989,8 @@ void setup() {
   analogWrite(SPEAKER_PIN, SPEAKER_OFF);
 #endif
 
-#ifndef CONFIG_PIPE_BASS
   Home_Stepper();
-#endif
+
 }
 
 void loop()
@@ -987,17 +1001,20 @@ void loop()
   Handle_Stepper();
 #else
   Handle_Serial_Input();
-  if (curr_note == SOLENOID_TRIGGER)
+  if (Current_Data == NOTE)
   {
-    Handle_Solenoid();
-  }
-  else if (curr_note == HOME_TRIGGER)
-  {
-    Home_Stepper();
-  }
-  else if (curr_note >= MIN_NOTE && curr_note <= MAX_NOTE)
-  {
-    Handle_Stepper();
+    if (curr_note == SOLENOID_TRIGGER)
+    {
+      Handle_Solenoid();
+    }
+    else if (curr_note == HOME_TRIGGER)
+    {
+      Home_Stepper();
+    }
+    else if (curr_note >= MIN_NOTE && curr_note <= MAX_NOTE)
+    {
+      Handle_Stepper();
+    }
   }
 #endif
 }
